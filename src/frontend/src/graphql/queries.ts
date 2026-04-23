@@ -208,3 +208,49 @@ export const DELETE_DASHBOARD = gql`
     deleteDashboard(id: $id)
   }
 `;
+
+// ── Auth mutations & queries ───────────────────────────────────────────────────
+
+export const LOGIN = gql`
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      token
+      expiresAt
+      user {
+        id
+        email
+        fullName
+        role
+        tenantId
+      }
+    }
+  }
+`;
+
+export const REGISTER = gql`
+  mutation Register($email: String!, $password: String!, $fullName: String!) {
+    register(email: $email, password: $password, fullName: $fullName) {
+      token
+      expiresAt
+      user {
+        id
+        email
+        fullName
+        role
+        tenantId
+      }
+    }
+  }
+`;
+
+export const ME = gql`
+  query Me {
+    me {
+      id
+      email
+      fullName
+      role
+      tenantId
+    }
+  }
+`;

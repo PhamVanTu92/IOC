@@ -9,6 +9,7 @@ using HotChocolate.Types;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using QueryCacheService = Gateway.Infrastructure.QueryCacheService;
 
 namespace Gateway.Schema.Queries;
 
@@ -24,7 +25,7 @@ namespace Gateway.Schema.Queries;
 // ─────────────────────────────────────────────────────────────────────────────
 
 [ExtendObjectType(OperationTypeNames.Query)]
-public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
+public sealed class SemanticQuery(ILogger<SemanticQuery> logger, QueryCacheService queryCache)
 {
     // ── Row models ────────────────────────────────────────────────────────────
 
@@ -61,6 +62,32 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
 
         try
         {
+            // ── Cache check ────────────────────────────────────────────────────
+            var cacheKey  = QueryCacheService.BuildCacheKey(tenantContext.TenantId, input);
+            var fromCache = false;
+
+            if (!input.ForceRefresh)
+            {
+                var cached = await queryCache.GetAsync(cacheKey, cancellationToken);
+                if (cached is not null)
+                {
+                    var cachedResult = JsonSerializer.Deserialize<QueryResultGql>(cached);
+                    if (cachedResult is not null)
+                    {
+                        // Rebuild metadata to reflect real cache state
+                        return cachedResult with
+                        {
+                            Metadata = cachedResult.Metadata with
+                            {
+                                FromCache       = true,
+                                CacheKey        = cacheKey,
+                                ExecutionTimeMs = sw.ElapsedMilliseconds,
+                            },
+                        };
+                    }
+                }
+            }
+
             await using var conn = new NpgsqlConnection(cs);
             await conn.OpenAsync(cancellationToken);
 
@@ -108,14 +135,20 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
 
             var rows = await ExecuteSqlAsync(conn, sql, parameters, columns, cancellationToken);
 
-            return new QueryResultGql(columns, rows, new QueryMetadataGql(
+            var result = new QueryResultGql(columns, rows, new QueryMetadataGql(
                 GeneratedSql: sql,
                 ExecutionTimeMs: sw.ElapsedMilliseconds,
                 TotalRows: rows.Count,
-                FromCache: false,
-                CacheKey: null,
+                FromCache: fromCache,
+                CacheKey: cacheKey,
                 ExecutedAt: DateTime.UtcNow,
                 ErrorMessage: null));
+
+            // ── Cache store ────────────────────────────────────────────────────
+            var json = JsonSerializer.Serialize(result);
+            await queryCache.SetAsync(cacheKey, json, ttl: null, cancellationToken);
+
+            return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

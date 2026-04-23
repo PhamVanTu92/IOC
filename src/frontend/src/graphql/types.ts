@@ -120,6 +120,22 @@ export interface DashboardSummaryGql {
 
 // ── Parsed row type ────────────────────────────────────────────────────────────
 
+// ── Auth GQL types ─────────────────────────────────────────────────────────────
+
+export interface AuthUserGql {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  tenantId: string;
+}
+
+export interface AuthPayloadGql {
+  token: string;
+  expiresAt: string;
+  user: AuthUserGql;
+}
+
 /** Row sau khi JSON.parse — map từ column name → giá trị */
 export type ParsedRow = Record<string, string | number | boolean | null>;
 

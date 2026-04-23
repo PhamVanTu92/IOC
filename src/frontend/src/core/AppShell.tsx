@@ -1,6 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import {
-  BrowserRouter,
   Routes,
   Route,
   NavLink,
@@ -11,6 +10,7 @@ import {
 import { pluginRegistry, type IOCPlugin, type RouteConfig } from './PluginRegistry';
 import { ConnectionStatusIndicator } from '@/shared/components/ConnectionStatusIndicator';
 import { useSignalR } from '@/shared/hooks/useSignalR';
+import { useAuthStore } from '@/features/auth/authStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AppShell — root layout with sidebar nav + main content area
@@ -81,6 +81,13 @@ function SidebarMenu({ plugins }: { plugins: IOCPlugin[] }) {
 
 function TopBar() {
   const { status } = useSignalR();
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div
@@ -90,12 +97,59 @@ function TopBar() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
+        gap: 16,
         padding: '0 20px',
         flexShrink: 0,
         backgroundColor: '#0a1628',
       }}
     >
       <ConnectionStatusIndicator status={status} />
+
+      {user && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500 }}>
+              {user.fullName}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>{user.email}</div>
+          </div>
+
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: '#0ea5e9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            {user.fullName.charAt(0).toUpperCase()}
+          </div>
+
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none',
+              border: '1px solid #1e293b',
+              borderRadius: 6,
+              color: '#94a3b8',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '4px 10px',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+            title="Đăng xuất"
+          >
+            Đăng xuất
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -138,9 +192,19 @@ export function AppShell() {
   const plugins = pluginRegistry.getAll();
   const routes = pluginRegistry.getAllRoutes();
 
+  // Auth guard — all hooks must be called before any conditional return
+  const { isAuthenticated } = useAuthStore();
+
   useEffect(() => {
-    pluginRegistry.initAll().then(() => setReady(true));
-  }, []);
+    if (isAuthenticated) {
+      pluginRegistry.initAll().then(() => setReady(true));
+    }
+  }, [isAuthenticated]);
+
+  // Redirect unauthenticated users to /login
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (!ready) {
     return (
@@ -152,42 +216,40 @@ export function AppShell() {
   }
 
   return (
-    <BrowserRouter>
-      <div className="ioc-layout">
-        <SidebarMenu plugins={plugins} />
+    <div className="ioc-layout">
+      <SidebarMenu plugins={plugins} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          <TopBar />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <TopBar />
 
-          <main className="ioc-main" style={{ flex: 1, overflow: 'auto' }}>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboards" replace />} />
+        <main className="ioc-main" style={{ flex: 1, overflow: 'auto' }}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboards" replace />} />
 
-                {/* Dashboard routes */}
-                <Route path="/dashboards" element={<DashboardListAdapter />} />
-                <Route path="/dashboards/:id" element={<DashboardDetailAdapter />} />
+              {/* Dashboard routes */}
+              <Route path="/dashboards" element={<DashboardListAdapter />} />
+              <Route path="/dashboards/:id" element={<DashboardDetailAdapter />} />
 
-                {/* Plugin-registered routes */}
-                {routes.map((route: RouteConfig) => (
-                  <Route
-                    key={route.path}
-                    path={route.path}
-                    element={
-                      <Suspense fallback={<PageLoader />}>
-                        <route.component />
-                      </Suspense>
-                    }
-                  />
-                ))}
+              {/* Plugin-registered routes */}
+              {routes.map((route: RouteConfig) => (
+                <Route
+                  key={route.path}
+                  path={route.path}
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <route.component />
+                    </Suspense>
+                  }
+                />
+              ))}
 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </main>
-        </div>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </main>
       </div>
-    </BrowserRouter>
+    </div>
   );
 }
 

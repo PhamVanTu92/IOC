@@ -1,10 +1,20 @@
 import React from 'react';
-import { ApolloClient, InMemoryCache, ApolloProvider, split, HttpLink } from '@apollo/client';
+import {
+  ApolloClient,
+  InMemoryCache,
+  ApolloProvider,
+  split,
+  HttpLink,
+} from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { pluginRegistry } from '@core/PluginRegistry';
 import { AppShell } from '@core/AppShell';
+import { LoginPage } from '@/features/auth/LoginPage';
+import { RegisterPage } from '@/features/auth/RegisterPage';
 import { FinancePlugin } from '@plugins/finance';
 import { HRPlugin } from '@plugins/hr';
 import { MarketingPlugin } from '@plugins/marketing';
@@ -25,14 +35,37 @@ const wsLink = new GraphQLWsLink(
 const splitLink = split(
   ({ query }) => {
     const definition = getMainDefinition(query);
-    return definition.kind === 'OperationDefinition' && definition.operation === 'subscription';
+    return (
+      definition.kind === 'OperationDefinition' && definition.operation === 'subscription'
+    );
   },
   wsLink,
   httpLink
 );
 
+// Auth link — reads token from localStorage directly (runs outside React tree)
+// Zustand persist key: 'ioc:auth', token is nested under state.token
+const authLink = setContext((_, { headers }: { headers: Record<string, string> }) => {
+  const raw = localStorage.getItem('ioc:auth');
+  let token: string | null = null;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { state?: { token?: string } };
+      token = parsed?.state?.token ?? null;
+    } catch {
+      // ignore malformed data
+    }
+  }
+  return {
+    headers: {
+      ...headers,
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+  };
+});
+
 const apolloClient = new ApolloClient({
-  link: splitLink,
+  link: authLink.concat(splitLink),
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: { fetchPolicy: 'cache-and-network' },
@@ -88,7 +121,18 @@ export function App() {
   return (
     <ErrorBoundary>
       <ApolloProvider client={apolloClient}>
-        <AppShell />
+        {/*
+          BrowserRouter lives here so /login and /register are accessible
+          OUTSIDE the protected AppShell, while AppShell handles all other routes.
+        */}
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            {/* All other routes pass through the protected AppShell */}
+            <Route path="/*" element={<AppShell />} />
+          </Routes>
+        </BrowserRouter>
       </ApolloProvider>
     </ErrorBoundary>
   );

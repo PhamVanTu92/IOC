@@ -1,6 +1,10 @@
+using System.Text;
 using Gateway;
+using Gateway.Auth;
 using Gateway.Infrastructure;
 using IOC.SignalR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +15,11 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Missing 'DefaultConnection' connection string.");
 
+var jwtOptions = builder.Configuration
+    .GetSection(JwtOptions.SectionName)
+    .Get<JwtOptions>()
+    ?? throw new InvalidOperationException("Missing 'Jwt' configuration section.");
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Services
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,14 +27,37 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services
     .AddDashboardServices(connectionString)
     .AddGateway()
+    .AddAuthServices(connectionString, jwtOptions)
     .AddRealtimeBridge(builder.Configuration);
 
-// Authentication (JWT Bearer)
+// JWT Bearer Authentication — configured with proper validation
 builder.Services
-    .AddAuthentication()
-    .AddJwtBearer();
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey         = new SymmetricSecurityKey(
+                                           Encoding.UTF8.GetBytes(jwtOptions.SecretKey)),
+            ValidateIssuer           = true,
+            ValidIssuer              = jwtOptions.Issuer,
+            ValidateAudience         = true,
+            ValidAudience            = jwtOptions.Audience,
+            ValidateLifetime         = true,
+            ClockSkew                = TimeSpan.FromSeconds(30),
+        };
+    });
 
 builder.Services.AddAuthorization();
+
+// Redis distributed cache
+var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConnection;
+    options.InstanceName  = "ioc:";
+});
 
 // CORS — allow Vite dev server + production origins
 builder.Services.AddCors(options =>
@@ -55,6 +87,8 @@ var app = builder.Build();
 
 app.UseWebSockets();
 app.UseCors("IOCFrontend");
+
+// Auth must come before TenantMiddleware so JWT claims are available
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantMiddleware>();

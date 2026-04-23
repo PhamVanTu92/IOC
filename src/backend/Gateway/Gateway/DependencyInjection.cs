@@ -1,5 +1,6 @@
 using DashboardService.Application;
 using DashboardService.Infrastructure;
+using Gateway.Auth;
 using Gateway.Infrastructure;
 using Gateway.Schema.Mutations;
 using Gateway.Schema.Queries;
@@ -18,6 +19,9 @@ public static class DependencyInjection
     {
         // Tenant resolution (scoped per request)
         services.AddScoped<TenantContext>();
+
+        // HttpContext access (required by AuthQuery.me)
+        services.AddHttpContextAccessor();
 
         // HotChocolate GraphQL
         var includeExceptionDetails =
@@ -40,6 +44,11 @@ public static class DependencyInjection
             // Semantic Layer query execution
             .AddTypeExtension<SemanticQuery>()
             .AddType<QueryResultType>()
+            // Auth schema
+            .AddTypeExtension<AuthMutation>()
+            .AddTypeExtension<AuthQuery>()
+            // Authorization support
+            .AddAuthorization()
             // Error handling
             .AddErrorFilter<GraphQLErrorFilter>()
             .ModifyRequestOptions(opt =>
@@ -65,6 +74,28 @@ public static class DependencyInjection
         services
             .AddDashboardApplication()
             .AddDashboardInfrastructure(connectionString);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers JWT token generation, user repository, data seeder, and
+    /// the Redis query cache. Call this after AddGateway().
+    /// </summary>
+    public static IServiceCollection AddAuthServices(
+        this IServiceCollection services,
+        string connectionString,
+        JwtOptions jwtOptions)
+    {
+        services.AddSingleton(jwtOptions);
+        services.AddScoped<TokenService>();
+        services.AddScoped<UserRepository>(_ => new UserRepository(connectionString));
+        services.AddScoped<QueryCacheService>();
+
+        // DataSeeder runs once at startup to guarantee demo users exist
+        services.AddSingleton(sp =>
+            new DataSeeder(connectionString, sp.GetRequiredService<ILogger<DataSeeder>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<DataSeeder>());
 
         return services;
     }
