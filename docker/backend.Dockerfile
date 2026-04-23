@@ -7,25 +7,24 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution + all project files first (layer cache)
-COPY backend/IOC.sln                                              backend/IOC.sln
+# Copy chỉ các .csproj cần thiết cho Gateway (layer cache)
 COPY backend/IOC.Core/IOC.Core.csproj                            backend/IOC.Core/
-COPY backend/IOC.SemanticLayer/IOC.SemanticLayer.csproj           backend/IOC.SemanticLayer/
+COPY backend/IOC.SemanticLayer/IOC.SemanticLayer.csproj          backend/IOC.SemanticLayer/
 COPY backend/DashboardService/DashboardService.Domain/DashboardService.Domain.csproj \
      backend/DashboardService/DashboardService.Domain/
 COPY backend/DashboardService/DashboardService.Application/DashboardService.Application.csproj \
      backend/DashboardService/DashboardService.Application/
 COPY backend/DashboardService/DashboardService.Infrastructure/DashboardService.Infrastructure.csproj \
      backend/DashboardService/DashboardService.Infrastructure/
-COPY backend/Gateway/Gateway/Gateway.csproj                       backend/Gateway/Gateway/
-COPY backend/Plugins/IOC.Finance/IOC.Finance.csproj              backend/Plugins/IOC.Finance/
-COPY backend/Plugins/IOC.HR/IOC.HR.csproj                        backend/Plugins/IOC.HR/
-COPY backend/Plugins/IOC.Marketing/IOC.Marketing.csproj          backend/Plugins/IOC.Marketing/
-COPY realtime/IOC.Kafka/IOC.Kafka.csproj                         realtime/IOC.Kafka/
-COPY realtime/IOC.SignalR/IOC.SignalR.csproj                     realtime/IOC.SignalR/
+COPY backend/Gateway/Gateway/Gateway.csproj                      backend/Gateway/Gateway/
+COPY backend/Plugins/IOC.Finance/IOC.Finance.csproj             backend/Plugins/IOC.Finance/
+COPY backend/Plugins/IOC.HR/IOC.HR.csproj                       backend/Plugins/IOC.HR/
+COPY backend/Plugins/IOC.Marketing/IOC.Marketing.csproj         backend/Plugins/IOC.Marketing/
+COPY realtime/IOC.Kafka/IOC.Kafka.csproj                        realtime/IOC.Kafka/
+COPY realtime/IOC.SignalR/IOC.SignalR.csproj                    realtime/IOC.SignalR/
 
-# Restore (cached unless .csproj changes)
-RUN dotnet restore backend/IOC.sln
+# Restore chỉ Gateway project (không dùng .sln để tránh pull test projects ngoài context)
+RUN dotnet restore backend/Gateway/Gateway/Gateway.csproj
 
 # Copy all source
 COPY backend/ backend/
