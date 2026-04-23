@@ -40,9 +40,10 @@ public sealed class GraphQLErrorFilter(ILogger<GraphQLErrorFilter> logger) : IEr
 
     private IError LogAndReturn(IError error, Exception ex)
     {
+        var path = error.Path is null ? "(root)" : string.Join(".", error.Path);
         logger.LogError(ex,
             "Unexpected GraphQL execution error at path [{Path}]: {Message}",
-            string.Join(".", error.Path ?? []),
+            path,
             ex.Message);
         return error;
     }
