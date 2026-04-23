@@ -16,9 +16,8 @@ namespace Gateway.Schema.Queries;
 [ExtendObjectType(OperationTypeNames.Query)]
 public sealed class DatasetQuery
 {
-    // ── Row model ─────────────────────────────────────────────────────────────
+    // ── Row models (snake_case to match DB column names for Dapper) ───────────
 
-    // Dapper maps by constructor parameter name (case-insensitive) → must match DB column names (snake_case)
     private sealed record DatasetRow(
         Guid id,
         Guid? tenant_id,
@@ -28,17 +27,53 @@ public sealed class DatasetQuery
         bool is_active,
         DateTime created_at);
 
+    private sealed record DimensionRow(
+        Guid id,
+        Guid dataset_id,
+        string name,
+        string display_name,
+        string? description,
+        string data_type,
+        string? format,
+        bool is_time_dimension,
+        string? default_granularity,
+        int sort_order,
+        bool is_active);
+
+    private sealed record MeasureRow(
+        Guid id,
+        Guid dataset_id,
+        string name,
+        string display_name,
+        string? description,
+        string aggregation_type,
+        string data_type,
+        string? format,
+        string? filter_expression,
+        int sort_order,
+        bool is_active);
+
+    private sealed record MetricRow(
+        Guid id,
+        Guid dataset_id,
+        string name,
+        string display_name,
+        string? description,
+        string expression,
+        string data_type,
+        string? format,
+        string[] depends_on_measures,
+        int sort_order,
+        bool is_active);
+
     // ── Queries ───────────────────────────────────────────────────────────────
 
-    /// <summary>List all datasets visible to the current tenant.</summary>
     public async Task<IReadOnlyList<DatasetSummaryGql>> DatasetsAsync(
         [Service] IConfiguration configuration,
         [Service] TenantContext tenantContext,
         CancellationToken cancellationToken,
         bool includeInactive = false)
     {
-        var cs = GetConnectionString(configuration);
-
         const string sql = """
             SELECT id, tenant_id, name, description, config_json, is_active, created_at
             FROM datasets
@@ -47,7 +82,7 @@ public sealed class DatasetQuery
             ORDER BY name
             """;
 
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(GetConnectionString(configuration));
         var rows = await conn.QueryAsync<DatasetRow>(
             new CommandDefinition(sql,
                 new { TenantId = tenantContext.TenantId, IncludeInactive = includeInactive },
@@ -56,36 +91,60 @@ public sealed class DatasetQuery
         return rows.Select(ToSummary).ToList();
     }
 
-    /// <summary>Get a single dataset by id.</summary>
     public async Task<DatasetDetailGql?> DatasetAsync(
         Guid id,
         [Service] IConfiguration configuration,
         [Service] TenantContext tenantContext,
         CancellationToken cancellationToken)
     {
-        var cs = GetConnectionString(configuration);
-
-        const string sql = """
+        const string datasetSql = """
             SELECT id, tenant_id, name, description, config_json, is_active, created_at
             FROM datasets
-            WHERE id = @Id
-              AND (tenant_id IS NULL OR tenant_id = @TenantId)
+            WHERE id = @Id AND (tenant_id IS NULL OR tenant_id = @TenantId)
             """;
 
-        await using var conn = new NpgsqlConnection(cs);
+        const string dimSql = """
+            SELECT id, dataset_id, name, display_name, description,
+                   data_type, format, is_time_dimension, default_granularity, sort_order, is_active
+            FROM dimensions
+            WHERE dataset_id = @Id AND is_active = true
+            ORDER BY sort_order
+            """;
+
+        const string measureSql = """
+            SELECT id, dataset_id, name, display_name, description,
+                   aggregation_type, data_type, format, filter_expression, sort_order, is_active
+            FROM measures
+            WHERE dataset_id = @Id AND is_active = true
+            ORDER BY sort_order
+            """;
+
+        const string metricSql = """
+            SELECT id, dataset_id, name, display_name, description,
+                   expression, data_type, format, depends_on_measures, sort_order, is_active
+            FROM metrics
+            WHERE dataset_id = @Id AND is_active = true
+            ORDER BY sort_order
+            """;
+
+        await using var conn = new NpgsqlConnection(GetConnectionString(configuration));
+        await conn.OpenAsync(cancellationToken);
+
         var row = await conn.QuerySingleOrDefaultAsync<DatasetRow>(
-            new CommandDefinition(sql,
+            new CommandDefinition(datasetSql,
                 new { Id = id, TenantId = tenantContext.TenantId },
                 cancellationToken: cancellationToken));
 
-        return row is null ? null : ToDetail(row);
+        if (row is null) return null;
+
+        var dims    = (await conn.QueryAsync<DimensionRow>(new CommandDefinition(dimSql,    new { Id = id }, cancellationToken: cancellationToken))).ToList();
+        var measures= (await conn.QueryAsync<MeasureRow>  (new CommandDefinition(measureSql,new { Id = id }, cancellationToken: cancellationToken))).ToList();
+        var metrics = (await conn.QueryAsync<MetricRow>   (new CommandDefinition(metricSql, new { Id = id }, cancellationToken: cancellationToken))).ToList();
+
+        return ToDetail(row, dims, measures, metrics);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static string GetConnectionString(IConfiguration configuration) =>
-        configuration.GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Missing 'DefaultConnection'");
+    // ── Mapping ───────────────────────────────────────────────────────────────
 
     private static DatasetSummaryGql ToSummary(DatasetRow r)
     {
@@ -101,7 +160,11 @@ public sealed class DatasetQuery
             UpdatedAt: r.created_at);
     }
 
-    private static DatasetDetailGql ToDetail(DatasetRow r)
+    private static DatasetDetailGql ToDetail(
+        DatasetRow r,
+        IReadOnlyList<DimensionRow> dims,
+        IReadOnlyList<MeasureRow> measures,
+        IReadOnlyList<MetricRow> metrics)
     {
         var cfg = ParseConfig(r.config_json);
         return new DatasetDetailGql(
@@ -116,10 +179,30 @@ public sealed class DatasetQuery
             IsActive: r.is_active,
             CreatedAt: r.created_at,
             UpdatedAt: r.created_at,
-            Dimensions: [],
-            Measures: [],
-            Metrics: []);
+            Dimensions: dims.Select(d => new DimensionGql(
+                Id: d.id, DatasetId: d.dataset_id, Name: d.name,
+                DisplayName: d.display_name, Description: d.description,
+                DataType: d.data_type, Format: d.format,
+                IsTimeDimension: d.is_time_dimension,
+                DefaultGranularity: d.default_granularity,
+                SortOrder: d.sort_order, IsActive: d.is_active)).ToList(),
+            Measures: measures.Select(m => new MeasureGql(
+                Id: m.id, DatasetId: m.dataset_id, Name: m.name,
+                DisplayName: m.display_name, Description: m.description,
+                AggregationType: m.aggregation_type, DataType: m.data_type,
+                Format: m.format, FilterExpression: m.filter_expression,
+                SortOrder: m.sort_order, IsActive: m.is_active)).ToList(),
+            Metrics: metrics.Select(x => new MetricGql(
+                Id: x.id, DatasetId: x.dataset_id, Name: x.name,
+                DisplayName: x.display_name, Description: x.description,
+                Expression: x.expression, DataType: x.data_type,
+                Format: x.format, DependsOnMeasures: x.depends_on_measures,
+                SortOrder: x.sort_order, IsActive: x.is_active)).ToList());
     }
+
+    private static string GetConnectionString(IConfiguration configuration) =>
+        configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Missing 'DefaultConnection'");
 
     private static DatasetConfig ParseConfig(string json)
     {
@@ -133,10 +216,7 @@ public sealed class DatasetQuery
                 TableName:  root.TryGetProperty("tableName",  out var tn) ? tn.GetString() : null,
                 CustomSql:  root.TryGetProperty("customSql",  out var cs) ? cs.GetString() : null);
         }
-        catch
-        {
-            return new DatasetConfig("postgres", null, null, null);
-        }
+        catch { return new DatasetConfig("postgres", null, null, null); }
     }
 
     private sealed record DatasetConfig(
