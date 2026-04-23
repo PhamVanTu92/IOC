@@ -37,6 +37,11 @@ public sealed class RealtimeBridgeService(
         PropertyNameCaseInsensitive = true,
     };
 
+    // Retry delays: 5s, 10s, 30s, 60s, 60s, ...
+    private static readonly TimeSpan[] _retryDelays =
+        [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10),
+         TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
+
     // ── BackgroundService entry point ─────────────────────────────────────────
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,23 +49,65 @@ public sealed class RealtimeBridgeService(
         logger.LogInformation(
             "RealtimeBridgeService starting — brokers: {Brokers}", options.BootstrapServers);
 
+        // Retry outer loop — nếu Kafka chưa sẵn sàng thì chờ và thử lại
+        // KHÔNG crash host, chỉ log warning
+        var attempt = 0;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunConsumerLoopAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // App đang shutdown — thoát bình thường
+                break;
+            }
+            catch (Exception ex)
+            {
+                var delay = _retryDelays[Math.Min(attempt++, _retryDelays.Length - 1)];
+                logger.LogWarning(ex,
+                    "Kafka consumer disconnected. Retry #{Attempt} in {Delay}s...",
+                    attempt, delay.TotalSeconds);
+
+                try { await Task.Delay(delay, stoppingToken); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+
+        logger.LogInformation("RealtimeBridgeService stopped");
+    }
+
+    // ── Consumer loop (tách riêng để retry dễ) ───────────────────────────────
+
+    private async Task RunConsumerLoopAsync(CancellationToken stoppingToken)
+    {
         var config = new ConsumerConfig
         {
             BootstrapServers = options.BootstrapServers,
             GroupId = options.ConsumerGroupId,
-            AutoOffsetReset = AutoOffsetReset.Latest, // Only broadcast future events
+            AutoOffsetReset = AutoOffsetReset.Latest,
             EnableAutoCommit = false,
             SessionTimeoutMs = 30_000,
             HeartbeatIntervalMs = 3_000,
+            // Giảm timeout connect để retry nhanh hơn
+            SocketTimeoutMs = 10_000,
+            MetadataMaxAgeMs = 10_000,
         };
 
         using var consumer = new ConsumerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>
-                logger.LogError("Kafka error: [{Code}] {Reason}", e.Code, e.Reason))
+            {
+                // Fatal error → throw để trigger retry loop bên ngoài
+                if (e.IsFatal)
+                    logger.LogError("Kafka FATAL error: [{Code}] {Reason}", e.Code, e.Reason);
+                else
+                    logger.LogWarning("Kafka warning: [{Code}] {Reason}", e.Code, e.Reason);
+            })
             .Build();
 
         consumer.Subscribe(_topics);
-        logger.LogInformation("Subscribed to topics: {Topics}", string.Join(", ", _topics));
+        logger.LogInformation("Subscribed to Kafka topics: {Topics}", string.Join(", ", _topics));
 
         try
         {
@@ -85,14 +132,13 @@ public sealed class RealtimeBridgeService(
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     logger.LogError(ex, "Dispatch error");
-                    await Task.Delay(1_000, stoppingToken); // brief back-off
+                    await Task.Delay(1_000, stoppingToken);
                 }
             }
         }
         finally
         {
             consumer.Close();
-            logger.LogInformation("RealtimeBridgeService stopped");
         }
     }
 
