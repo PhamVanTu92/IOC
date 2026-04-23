@@ -8,7 +8,7 @@
       "MaintenanceDB": "ioc_dev",
       "Username": "postgres",
       "SSLMode": "prefer",
-      "PassFile": "/tmp/pgpassfile"
+      "Password": "postgres"
     }
   }
 }
