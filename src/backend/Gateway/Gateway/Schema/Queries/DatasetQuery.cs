@@ -18,14 +18,15 @@ public sealed class DatasetQuery
 {
     // ── Row model ─────────────────────────────────────────────────────────────
 
+    // Dapper maps by constructor parameter name (case-insensitive) → must match DB column names (snake_case)
     private sealed record DatasetRow(
-        Guid Id,
-        Guid? TenantId,
-        string Name,
-        string? Description,
-        string ConfigJson,
-        bool IsActive,
-        DateTime CreatedAt);
+        Guid id,
+        Guid? tenant_id,
+        string name,
+        string? description,
+        string config_json,
+        bool is_active,
+        DateTime created_at);
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -88,33 +89,33 @@ public sealed class DatasetQuery
 
     private static DatasetSummaryGql ToSummary(DatasetRow r)
     {
-        var cfg = ParseConfig(r.ConfigJson);
+        var cfg = ParseConfig(r.config_json);
         return new DatasetSummaryGql(
-            Id: r.Id,
-            TenantId: r.TenantId,
-            Name: r.Name,
-            Description: r.Description,
+            Id: r.id,
+            TenantId: r.tenant_id,
+            Name: r.name,
+            Description: r.description,
             SourceType: cfg.SourceType,
-            IsActive: r.IsActive,
-            CreatedAt: r.CreatedAt,
-            UpdatedAt: r.CreatedAt);
+            IsActive: r.is_active,
+            CreatedAt: r.created_at,
+            UpdatedAt: r.created_at);
     }
 
     private static DatasetDetailGql ToDetail(DatasetRow r)
     {
-        var cfg = ParseConfig(r.ConfigJson);
+        var cfg = ParseConfig(r.config_json);
         return new DatasetDetailGql(
-            Id: r.Id,
-            TenantId: r.TenantId,
-            Name: r.Name,
-            Description: r.Description,
+            Id: r.id,
+            TenantId: r.tenant_id,
+            Name: r.name,
+            Description: r.description,
             SourceType: cfg.SourceType,
             SchemaName: cfg.SchemaName,
             TableName: cfg.TableName,
             CustomSql: cfg.CustomSql,
-            IsActive: r.IsActive,
-            CreatedAt: r.CreatedAt,
-            UpdatedAt: r.CreatedAt,
+            IsActive: r.is_active,
+            CreatedAt: r.created_at,
+            UpdatedAt: r.created_at,
             Dimensions: [],
             Measures: [],
             Metrics: []);
