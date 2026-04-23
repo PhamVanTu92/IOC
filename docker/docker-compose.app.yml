@@ -30,6 +30,9 @@ services:
       ConnectionStrings__DefaultConnection: "Host=ioc-postgres;Port=5432;Database=ioc_dev;Username=postgres;Password=postgres;Pooling=true;MinPoolSize=2;MaxPoolSize=20"
       RealtimeBridge__BootstrapServers: "ioc-kafka:29092"
       RealtimeBridge__ConsumerGroupId: "ioc-gateway-prod"
+      GraphQL__IncludeExceptionDetails: "true"
+      Cors__AllowedOrigins__0: "http://192.168.100.62:3000"
+      Cors__AllowedOrigins__1: "http://localhost:3000"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 15s

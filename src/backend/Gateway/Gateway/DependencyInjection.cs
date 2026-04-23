@@ -20,6 +20,11 @@ public static class DependencyInjection
         services.AddScoped<TenantContext>();
 
         // HotChocolate GraphQL
+        // Include full exception details when explicitly enabled (dev/debug) or in Development env
+        var includeExceptionDetails =
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
+            Environment.GetEnvironmentVariable("GraphQL__IncludeExceptionDetails") == "true";
+
         services
             .AddGraphQLServer()
             .AddQueryType(d => d.Name("Query"))
@@ -32,8 +37,7 @@ public static class DependencyInjection
             // Error handling
             .AddErrorFilter<GraphQLErrorFilter>()
             .ModifyRequestOptions(opt =>
-                opt.IncludeExceptionDetails =
-                    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development");
+                opt.IncludeExceptionDetails = includeExceptionDetails);
 
         // SignalR
         services.AddSignalR(options =>
