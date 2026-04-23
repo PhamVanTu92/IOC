@@ -27,19 +27,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      # Trỏ vào infra containers cùng mạng
-      ConnectionStrings__DefaultConnection: >-
-        Host=ioc-postgres;Port=5432;Database=ioc_dev;
-        Username=postgres;Password=postgres;
-        Pooling=true;MinPoolSize=2;MaxPoolSize=20
+      ConnectionStrings__DefaultConnection: "Host=ioc-postgres;Port=5432;Database=ioc_dev;Username=postgres;Password=postgres;Pooling=true;MinPoolSize=2;MaxPoolSize=20"
       RealtimeBridge__BootstrapServers: "ioc-kafka:29092"
       RealtimeBridge__ConsumerGroupId: "ioc-gateway-prod"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 8
+      start_period: 90s
     networks:
       - ioc-net      # dùng chung network với infra
     ports:
