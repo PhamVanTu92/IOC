@@ -62,7 +62,7 @@ public sealed class DatasetQuery
         string expression,
         string data_type,
         string? format,
-        string[] depends_on_measures,
+        string depends_on_measures,   // Dapper không map TEXT[] → dùng array_to_string trong SQL
         int sort_order,
         bool is_active);
 
@@ -121,7 +121,9 @@ public sealed class DatasetQuery
 
         const string metricSql = """
             SELECT id, dataset_id, name, display_name, description,
-                   expression, data_type, format, depends_on_measures, sort_order, is_active
+                   expression, data_type, format,
+                   array_to_string(depends_on_measures, ',') AS depends_on_measures,
+                   sort_order, is_active
             FROM metrics
             WHERE dataset_id = @Id AND is_active = true
             ORDER BY sort_order
@@ -196,7 +198,10 @@ public sealed class DatasetQuery
                 Id: x.id, DatasetId: x.dataset_id, Name: x.name,
                 DisplayName: x.display_name, Description: x.description,
                 Expression: x.expression, DataType: x.data_type,
-                Format: x.format, DependsOnMeasures: x.depends_on_measures,
+                Format: x.format,
+                DependsOnMeasures: string.IsNullOrEmpty(x.depends_on_measures)
+                    ? []
+                    : x.depends_on_measures.Split(',', StringSplitOptions.RemoveEmptyEntries),
                 SortOrder: x.sort_order, IsActive: x.is_active)).ToList());
     }
 
