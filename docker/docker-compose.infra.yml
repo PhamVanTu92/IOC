@@ -1,0 +1,184 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IOC Infrastructure — PostgreSQL + Redis + Kafka
+#
+# Chạy:  docker compose -f docker-compose.infra.yml up -d
+# Dừng:  docker compose -f docker-compose.infra.yml down
+# Reset: docker compose -f docker-compose.infra.yml down -v
+#
+# Ports:
+#   PostgreSQL  → localhost:5432
+#   Redis       → localhost:6379
+#   Kafka       → localhost:9092
+#   pgAdmin     → http://localhost:5050
+#   Redis UI    → http://localhost:8081
+#   Kafka UI    → http://localhost:8080
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+# ════════════════════════════════════════════════════════════════════════════
+# POSTGRESQL
+# ════════════════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:16-alpine
+    container_name: ioc-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB:       ioc_dev
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # Nếu có migration riêng, mount thêm:
+      # - ../src/backend/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ioc_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [ioc-net]
+
+  # pgAdmin — quản lý database qua browser
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: ioc-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@ioc.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ../infra/postgres/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [ioc-net]
+
+# ════════════════════════════════════════════════════════════════════════════
+# REDIS
+# ════════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7.4-alpine
+    container_name: ioc-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ../infra/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [ioc-net]
+
+  # Redis Insight — UI quản lý Redis
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: ioc-redis-ui
+    restart: unless-stopped
+    ports:
+      - "8081:5540"
+    volumes:
+      - redis_insight_data:/data
+    depends_on:
+      - redis
+    networks: [ioc-net]
+
+# ════════════════════════════════════════════════════════════════════════════
+# KAFKA  (KRaft mode — không cần Zookeeper)
+# ════════════════════════════════════════════════════════════════════════════
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: ioc-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"     # app kết nối từ host
+      - "9101:9101"     # JMX metrics
+    environment:
+      # KRaft — không cần Zookeeper
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Topics & retention
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168     # 7 ngày
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      # JMX
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # Cluster ID (stable)
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks: [ioc-net]
+
+  # Kafka Init — tạo topics khi Kafka sẵn sàng
+  kafka-init:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: ioc-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ../infra/kafka/topics.sh:/topics.sh:ro
+    command: ["bash", "/topics.sh"]
+    networks: [ioc-net]
+    restart: "no"
+
+  # Kafka UI — xem topics, messages, consumer groups
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ioc-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ioc-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_METRICS_PORT: 9101
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks: [ioc-net]
+
+# ════════════════════════════════════════════════════════════════════════════
+networks:
+  ioc-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  redis_data:
+  redis_insight_data:
+  kafka_data:

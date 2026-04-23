@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "IOC Dev",
+      "Group": "IOC",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "ioc_dev",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "PassFile": "/tmp/pgpassfile"
+    }
+  }
+}
