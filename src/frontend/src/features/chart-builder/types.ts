@@ -2,6 +2,7 @@
 // Chart Builder — core types
 // Serializable → có thể lưu vào DB / LocalStorage / copy-paste
 // ─────────────────────────────────────────────────────────────────────────────
+import { generateUUID } from '@/shared/utils/uuid';
 
 export type ChartType =
   | 'line'
@@ -111,7 +112,7 @@ export interface ChartBuilderState {
 
 export function createDefaultConfig(overrides?: Partial<ChartConfig>): ChartConfig {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     title: 'Chart mới',
     chartType: 'bar',
     datasetId: '',

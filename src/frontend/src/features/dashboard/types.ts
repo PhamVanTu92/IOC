@@ -1,21 +1,5 @@
 import type { ChartConfig } from '@/features/chart-builder/types';
-
-// ── UUID helper — crypto.randomUUID() chỉ available trên HTTPS/localhost ──────
-// Fallback dùng Math.random() cho HTTP trên LAN IP
-function generateUUID(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return crypto.randomUUID();
-  }
-  // RFC 4122 v4 UUID fallback
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+import { generateUUID } from '@/shared/utils/uuid';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dashboard — core types
