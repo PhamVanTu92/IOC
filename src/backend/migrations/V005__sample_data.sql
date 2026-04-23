@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS finance_data (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     transaction_date DATE        NOT NULL,
     month            VARCHAR(7)  NOT NULL,   -- 'YYYY-MM'
-    quarter          VARCHAR(6)  NOT NULL,   -- 'YYYY-Q1'
+    quarter          VARCHAR(7)  NOT NULL,   -- 'YYYY-Q1'
     year             INT         NOT NULL,
     department       VARCHAR(100) NOT NULL,
     category         VARCHAR(100) NOT NULL,
