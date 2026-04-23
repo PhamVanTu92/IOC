@@ -87,7 +87,16 @@ interface DeleteDashboardData {
 
 function parseDashboardConfig(gql: DashboardGql): DashboardConfig {
   try {
-    return JSON.parse(gql.configJson) as DashboardConfig;
+    const config = JSON.parse(gql.configJson) as DashboardConfig;
+    // Always override id/timestamps with the backend's canonical values.
+    // configJson may still contain an old temp- id (e.g. right after createDashboard),
+    // so gql.id is the authoritative source.
+    return {
+      ...config,
+      id: gql.id,
+      createdAt: gql.createdAt,
+      updatedAt: gql.updatedAt,
+    };
   } catch {
     // If JSON is malformed, return a minimal placeholder
     return {
@@ -196,7 +205,18 @@ export function useDashboardSave(): UseDashboardSaveResult {
         if (errors?.length) throw new Error(errors[0].message);
         if (!data) throw new Error('No data returned from createDashboard');
 
+        // parseDashboardConfig already overrides id/timestamps from gql.
+        // But configJson stored in DB still has the old temp- id.
+        // Patch it immediately with a follow-up update so subsequent fetches
+        // get a consistent configJson (avoids stale temp-id on next load).
         const saved = parseDashboardConfig(data.createDashboard);
+        void updateMutation({
+          variables: {
+            id: saved.id,
+            input: { title: saved.title, description: saved.description, configJson: JSON.stringify(saved) },
+          },
+        });
+
         // Update LS with the real backend-assigned id
         lsRemove(config.id);
         lsSave(saved);
