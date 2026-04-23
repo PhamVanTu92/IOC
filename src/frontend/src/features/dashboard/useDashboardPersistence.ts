@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useApolloClient } from '@apollo/client';
 import {
   LIST_DASHBOARDS,
@@ -139,12 +139,21 @@ export function useDashboardLoad(id: string | undefined): UseDashboardLoadResult
     fetchPolicy: 'cache-and-network',
   });
 
-  if (!id) return { config: null, loading: false, error: undefined };
-
-  const config = data?.dashboard ? parseDashboardConfig(data.dashboard) : null;
+  // Memoize by configJson string — parseDashboardConfig calls JSON.parse every render,
+  // which would produce a new object reference and trigger infinite useEffect loops.
+  const config = useMemo(
+    () => (data?.dashboard ? parseDashboardConfig(data.dashboard) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data?.dashboard?.configJson],
+  );
 
   // LocalStorage fallback while loading
-  const lsConfig = !config && !loading ? lsGet(id) : null;
+  const lsConfig = useMemo(
+    () => (!config && !loading ? lsGet(id ?? '') : null),
+    [config, loading, id],
+  );
+
+  if (!id) return { config: null, loading: false, error: undefined };
 
   return {
     config: config ?? lsConfig,

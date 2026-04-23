@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardToolbar } from './DashboardToolbar';
 import { WidgetLibrary } from './WidgetLibrary';
@@ -45,20 +45,37 @@ export function DashboardPage({ dashboardId, onDeleted, onBack }: DashboardPageP
   const openEditor        = useDashboardStore((s) => s.openEditor);
   const closeEditor       = useDashboardStore((s) => s.closeEditor);
   const markSaved         = useDashboardStore((s) => s.markSaved);
-  const loadDashboard     = useDashboardStore((s) => s.loadDashboard);
-  const resetDashboard    = useDashboardStore((s) => s.resetDashboard);
 
   // ── Remote persistence ─────────────────────────────────────────────────────
   const { config: remoteConfig, loading: loadingRemote } = useDashboardLoad(dashboardId);
   const { save, remove, saving, error: saveError } = useDashboardSave();
 
+  // Unified ref tracking the last "effective state" we acted on:
+  //   ''      = initial, never loaded
+  //   'new'   = resetDashboard() already called for a blank canvas
+  //   <uuid>  = a specific dashboard has been loaded via loadDashboard()
+  //
+  // Rules:
+  //   • Use useDashboardStore.getState() inside the effect to avoid having
+  //     Zustand action functions as deps (their references can change with Immer).
+  //   • Only remoteConfig / dashboardId / loadingRemote drive re-runs.
+  //   • Ref guard ensures each action fires at most once per state transition.
+  const lastActedIdRef = useRef<string>('');
+
   useEffect(() => {
     if (remoteConfig) {
-      loadDashboard(remoteConfig);
+      if (remoteConfig.id !== lastActedIdRef.current) {
+        lastActedIdRef.current = remoteConfig.id;
+        useDashboardStore.getState().loadDashboard(remoteConfig);
+      }
     } else if (!dashboardId && !loadingRemote) {
-      resetDashboard();
+      if (lastActedIdRef.current !== 'new') {
+        lastActedIdRef.current = 'new';
+        useDashboardStore.getState().resetDashboard();
+      }
     }
-  }, [remoteConfig, dashboardId, loadingRemote, loadDashboard, resetDashboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteConfig, dashboardId, loadingRemote]);
 
   // ── Realtime — concurrent editor awareness ─────────────────────────────────
   const [concurrentEditBanner, setConcurrentEditBanner] = useState<string | null>(null);
@@ -117,7 +134,9 @@ export function DashboardPage({ dashboardId, onDeleted, onBack }: DashboardPageP
     try {
       const saved = await save(dashboard);
       if (saved.id !== dashboard.id) {
-        loadDashboard(saved);
+        // Dashboard was newly created — update ref so the effect guard stays in sync
+        lastActedIdRef.current = saved.id;
+        useDashboardStore.getState().loadDashboard(saved);
       } else {
         markSaved();
       }
@@ -129,9 +148,9 @@ export function DashboardPage({ dashboardId, onDeleted, onBack }: DashboardPageP
   async function handleDiscard() {
     if (!window.confirm('Huỷ tất cả thay đổi chưa lưu?')) return;
     if (dashboardId && remoteConfig) {
-      loadDashboard(remoteConfig);
+      useDashboardStore.getState().loadDashboard(remoteConfig);
     } else {
-      resetDashboard();
+      useDashboardStore.getState().resetDashboard();
     }
   }
 
