@@ -1,9 +1,7 @@
-import React from 'react';
 import type { IOCPlugin } from '@core/PluginRegistry';
+import { ComingSoon } from '@shared/components/ComingSoon';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HR Plugin — Nhân sự
-// ─────────────────────────────────────────────────────────────────────────────
+const placeholder = (name: string) => () => ComingSoon({ name });
 
 export const HRPlugin: IOCPlugin = {
   id: 'hr',
@@ -14,26 +12,10 @@ export const HRPlugin: IOCPlugin = {
   color: '#3B82F6',
 
   routes: [
-    {
-      path: '/hr',
-      label: 'Tổng quan Nhân sự',
-      component: React.lazy(() => import('./pages/HROverview')),
-    },
-    {
-      path: '/hr/employees',
-      label: 'Nhân viên',
-      component: React.lazy(() => import('./pages/EmployeesPage')),
-    },
-    {
-      path: '/hr/attendance',
-      label: 'Chấm công',
-      component: React.lazy(() => import('./pages/AttendancePage')),
-    },
-    {
-      path: '/hr/payroll',
-      label: 'Lương',
-      component: React.lazy(() => import('./pages/PayrollPage')),
-    },
+    { path: '/hr',            label: 'Tổng quan Nhân sự', component: placeholder('HR Overview') },
+    { path: '/hr/employees',  label: 'Nhân viên',          component: placeholder('Employees') },
+    { path: '/hr/attendance', label: 'Chấm công',          component: placeholder('Attendance') },
+    { path: '/hr/payroll',    label: 'Lương',               component: placeholder('Payroll') },
   ],
 
   widgets: [
@@ -43,7 +25,7 @@ export const HRPlugin: IOCPlugin = {
       description: 'Tổng nhân viên, tuyển mới, nghỉ việc',
       defaultSize: { w: 3, h: 2 },
       category: 'kpi',
-      component: React.lazy(() => import('./widgets/HeadcountKPI')),
+      component: placeholder('Headcount KPI'),
     },
     {
       id: 'hr.attendance-chart',
@@ -51,7 +33,7 @@ export const HRPlugin: IOCPlugin = {
       description: 'Bar chart tỷ lệ đi làm / vắng mặt theo tuần',
       defaultSize: { w: 6, h: 3 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/AttendanceChart')),
+      component: placeholder('Attendance Chart'),
     },
     {
       id: 'hr.department-pie',
@@ -59,7 +41,7 @@ export const HRPlugin: IOCPlugin = {
       description: 'Phân bổ nhân sự theo phòng ban',
       defaultSize: { w: 4, h: 3 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/DepartmentPie')),
+      component: placeholder('Department Pie'),
     },
   ],
 
@@ -71,14 +53,12 @@ export const HRPlugin: IOCPlugin = {
       path: '/hr',
       order: 20,
       children: [
-        { id: 'hr-employees', label: 'Nhân viên', icon: '👤', path: '/hr/employees', order: 21 },
+        { id: 'hr-employees',  label: 'Nhân viên', icon: '👤', path: '/hr/employees',  order: 21 },
         { id: 'hr-attendance', label: 'Chấm công', icon: '📅', path: '/hr/attendance', order: 22 },
-        { id: 'hr-payroll', label: 'Lương', icon: '💳', path: '/hr/payroll', order: 23 },
+        { id: 'hr-payroll',    label: 'Lương',      icon: '💳', path: '/hr/payroll',    order: 23 },
       ],
     },
   ],
 
-  onInit: async () => {
-    console.info('[HR Plugin] Initialized');
-  },
+  onInit: async () => { console.info('[HR Plugin] Initialized'); },
 };

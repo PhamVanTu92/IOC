@@ -1,9 +1,11 @@
-import React from 'react';
 import type { IOCPlugin } from '@core/PluginRegistry';
+import { ComingSoon } from '@shared/components/ComingSoon';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Finance Plugin — Tài chính
 // ─────────────────────────────────────────────────────────────────────────────
+
+const placeholder = (name: string) => () => ComingSoon({ name });
 
 export const FinancePlugin: IOCPlugin = {
   id: 'finance',
@@ -14,21 +16,9 @@ export const FinancePlugin: IOCPlugin = {
   color: '#10B981',
 
   routes: [
-    {
-      path: '/finance',
-      label: 'Tổng quan Tài chính',
-      component: React.lazy(() => import('./pages/FinanceOverview')),
-    },
-    {
-      path: '/finance/budget',
-      label: 'Ngân sách',
-      component: React.lazy(() => import('./pages/BudgetPage')),
-    },
-    {
-      path: '/finance/reports',
-      label: 'Báo cáo',
-      component: React.lazy(() => import('./pages/FinanceReports')),
-    },
+    { path: '/finance',         label: 'Tổng quan Tài chính', component: placeholder('Finance Overview') },
+    { path: '/finance/budget',  label: 'Ngân sách',           component: placeholder('Budget') },
+    { path: '/finance/reports', label: 'Báo cáo',             component: placeholder('Finance Reports') },
   ],
 
   widgets: [
@@ -38,7 +28,7 @@ export const FinancePlugin: IOCPlugin = {
       description: 'Line chart doanh thu theo tháng',
       defaultSize: { w: 6, h: 3 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/RevenueChart')),
+      component: placeholder('Revenue Chart'),
     },
     {
       id: 'finance.budget-kpi',
@@ -46,7 +36,7 @@ export const FinancePlugin: IOCPlugin = {
       description: 'Tổng ngân sách đã dùng / còn lại',
       defaultSize: { w: 3, h: 2 },
       category: 'kpi',
-      component: React.lazy(() => import('./widgets/BudgetKPI')),
+      component: placeholder('Budget KPI'),
     },
     {
       id: 'finance.expense-pie',
@@ -54,7 +44,7 @@ export const FinancePlugin: IOCPlugin = {
       description: 'Pie chart phân bổ theo danh mục',
       defaultSize: { w: 4, h: 3 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/ExpensePie')),
+      component: placeholder('Expense Pie'),
     },
   ],
 
@@ -66,13 +56,11 @@ export const FinancePlugin: IOCPlugin = {
       path: '/finance',
       order: 10,
       children: [
-        { id: 'finance-budget', label: 'Ngân sách', icon: '📊', path: '/finance/budget', order: 11 },
-        { id: 'finance-reports', label: 'Báo cáo', icon: '📄', path: '/finance/reports', order: 12 },
+        { id: 'finance-budget',  label: 'Ngân sách', icon: '📊', path: '/finance/budget',  order: 11 },
+        { id: 'finance-reports', label: 'Báo cáo',   icon: '📄', path: '/finance/reports', order: 12 },
       ],
     },
   ],
 
-  onInit: async () => {
-    console.info('[Finance Plugin] Initialized');
-  },
+  onInit: async () => { console.info('[Finance Plugin] Initialized'); },
 };

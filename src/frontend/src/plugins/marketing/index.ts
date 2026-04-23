@@ -1,9 +1,7 @@
-import React from 'react';
 import type { IOCPlugin } from '@core/PluginRegistry';
+import { ComingSoon } from '@shared/components/ComingSoon';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Marketing Plugin
-// ─────────────────────────────────────────────────────────────────────────────
+const placeholder = (name: string) => () => ComingSoon({ name });
 
 export const MarketingPlugin: IOCPlugin = {
   id: 'marketing',
@@ -14,21 +12,9 @@ export const MarketingPlugin: IOCPlugin = {
   color: '#F59E0B',
 
   routes: [
-    {
-      path: '/marketing',
-      label: 'Tổng quan Marketing',
-      component: React.lazy(() => import('./pages/MarketingOverview')),
-    },
-    {
-      path: '/marketing/campaigns',
-      label: 'Campaigns',
-      component: React.lazy(() => import('./pages/CampaignsPage')),
-    },
-    {
-      path: '/marketing/leads',
-      label: 'Leads',
-      component: React.lazy(() => import('./pages/LeadsPage')),
-    },
+    { path: '/marketing',           label: 'Tổng quan Marketing', component: placeholder('Marketing Overview') },
+    { path: '/marketing/campaigns', label: 'Campaigns',            component: placeholder('Campaigns') },
+    { path: '/marketing/leads',     label: 'Leads',                component: placeholder('Leads') },
   ],
 
   widgets: [
@@ -38,7 +24,7 @@ export const MarketingPlugin: IOCPlugin = {
       description: 'Số campaign đang chạy, leads, conversion rate',
       defaultSize: { w: 3, h: 2 },
       category: 'kpi',
-      component: React.lazy(() => import('./widgets/CampaignKPI')),
+      component: placeholder('Campaign KPI'),
     },
     {
       id: 'marketing.funnel-chart',
@@ -46,7 +32,7 @@ export const MarketingPlugin: IOCPlugin = {
       description: 'Phễu chuyển đổi từ lead → customer',
       defaultSize: { w: 5, h: 4 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/FunnelChart')),
+      component: placeholder('Funnel Chart'),
     },
     {
       id: 'marketing.channel-bar',
@@ -54,7 +40,7 @@ export const MarketingPlugin: IOCPlugin = {
       description: 'Hiệu quả theo kênh (Social, Email, SEO, Ads)',
       defaultSize: { w: 6, h: 3 },
       category: 'chart',
-      component: React.lazy(() => import('./widgets/ChannelBar')),
+      component: placeholder('Channel Bar'),
     },
   ],
 
@@ -67,12 +53,10 @@ export const MarketingPlugin: IOCPlugin = {
       order: 30,
       children: [
         { id: 'marketing-campaigns', label: 'Campaigns', icon: '🎯', path: '/marketing/campaigns', order: 31 },
-        { id: 'marketing-leads', label: 'Leads', icon: '🧲', path: '/marketing/leads', order: 32 },
+        { id: 'marketing-leads',     label: 'Leads',     icon: '🧲', path: '/marketing/leads',     order: 32 },
       ],
     },
   ],
 
-  onInit: async () => {
-    console.info('[Marketing Plugin] Initialized');
-  },
+  onInit: async () => { console.info('[Marketing Plugin] Initialized'); },
 };
