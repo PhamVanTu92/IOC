@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# IOC App Stack — Backend (.NET 8) + Frontend (React + nginx)
+#
+# Yêu cầu: docker-compose.infra.yml đang chạy trước
+#
+# Khởi động:
+#   cd /opt/ioc/docker
+#   docker compose -f docker-compose.app.yml up -d --build
+#
+# Cập nhật chỉ backend:
+#   docker compose -f docker-compose.app.yml up -d --build --no-deps backend
+#
+# Cập nhật chỉ frontend:
+#   docker compose -f docker-compose.app.yml up -d --build --no-deps frontend
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Backend (.NET 8 / HotChocolate GraphQL / SignalR) ──────────────────────
+  backend:
+    build:
+      context: ../src
+      dockerfile: ../docker/backend.Dockerfile
+    image: ioc-backend:latest
+    container_name: ioc-backend
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      # Trỏ vào infra containers cùng mạng
+      ConnectionStrings__DefaultConnection: >-
+        Host=ioc-postgres;Port=5432;Database=ioc_dev;
+        Username=postgres;Password=postgres;
+        Pooling=true;MinPoolSize=2;MaxPoolSize=20
+      RealtimeBridge__BootstrapServers: "ioc-kafka:29092"
+      RealtimeBridge__ConsumerGroupId: "ioc-gateway-prod"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ioc-net      # dùng chung network với infra
+    ports:
+      - "5000:8080"  # optional: expose trực tiếp để test API
+
+  # ── Frontend (React + nginx reverse proxy) ──────────────────────────────────
+  frontend:
+    build:
+      context: ../src/frontend
+      dockerfile: Dockerfile
+    image: ioc-frontend:latest
+    container_name: ioc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ioc-net
+
+networks:
+  ioc-net:
+    external: true          # dùng network đã tạo bởi docker-compose.infra.yml
+    name: docker_ioc-net    # tên thực tế Docker đặt cho network
