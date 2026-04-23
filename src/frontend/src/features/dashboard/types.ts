@@ -62,7 +62,8 @@ export interface DashboardConfig {
 export function createDefaultDashboard(overrides?: Partial<DashboardConfig>): DashboardConfig {
   const now = new Date().toISOString();
   return {
-    id: generateUUID(),
+    // Prefix 'temp-' → useDashboardPersistence biết chưa lưu lên server → gọi createDashboard
+    id: `temp-${generateUUID()}`,
     title: 'Dashboard mới',
     description: '',
     widgets: [],
