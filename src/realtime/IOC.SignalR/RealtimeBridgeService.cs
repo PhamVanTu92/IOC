@@ -46,6 +46,11 @@ public sealed class RealtimeBridgeService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // ⚠️ QUAN TRỌNG: yield ngay để Host tiếp tục startup (Kestrel bind port)
+        // consumer.Consume() là blocking call — nếu không yield, Host sẽ bị block
+        // và không bao giờ lắng nghe HTTP requests.
+        await Task.Yield();
+
         logger.LogInformation(
             "RealtimeBridgeService starting — brokers: {Brokers}", options.BootstrapServers);
 
