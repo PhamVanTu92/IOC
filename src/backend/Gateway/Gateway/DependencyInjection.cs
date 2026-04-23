@@ -37,6 +37,9 @@ public static class DependencyInjection
             .AddTypeExtension<DatasetQuery>()
             .AddType<DatasetSummaryType>()
             .AddType<DatasetDetailType>()
+            // Semantic Layer query execution
+            .AddTypeExtension<SemanticQuery>()
+            .AddType<QueryResultType>()
             // Error handling
             .AddErrorFilter<GraphQLErrorFilter>()
             .ModifyRequestOptions(opt =>
