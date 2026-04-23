@@ -20,7 +20,6 @@ public static class DependencyInjection
         services.AddScoped<TenantContext>();
 
         // HotChocolate GraphQL
-        // Include full exception details when explicitly enabled (dev/debug) or in Development env
         var includeExceptionDetails =
             Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
             Environment.GetEnvironmentVariable("GraphQL__IncludeExceptionDetails") == "true";
@@ -34,6 +33,10 @@ public static class DependencyInjection
             .AddTypeExtension<DashboardMutation>()
             .AddType<DashboardType>()
             .AddType<DashboardSummaryType>()
+            // Dataset schema (semantic layer registry)
+            .AddTypeExtension<DatasetQuery>()
+            .AddType<DatasetSummaryType>()
+            .AddType<DatasetDetailType>()
             // Error handling
             .AddErrorFilter<GraphQLErrorFilter>()
             .ModifyRequestOptions(opt =>
@@ -63,20 +66,14 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>
-    /// Register the Kafka→SignalR bridge and its configuration.
-    /// Call after AddGateway() so SignalR + IHubContext are already registered.
-    /// </summary>
     public static IServiceCollection AddRealtimeBridge(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Bind options from "RealtimeBridge" section (or use defaults)
         var options = new RealtimeBridgeOptions();
         configuration.GetSection("RealtimeBridge").Bind(options);
         services.AddSingleton(options);
 
-        // Register as IHostedService — starts consuming Kafka on app startup
         services.AddHostedService<RealtimeBridgeService>();
 
         return services;
