@@ -7,8 +7,7 @@
       "Port": 5432,
       "MaintenanceDB": "ioc_dev",
       "Username": "postgres",
-      "SSLMode": "prefer",
-      "Password": "postgres"
+      "SSLMode": "prefer"
     }
   }
 }
