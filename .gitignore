@@ -1,0 +1,36 @@
+# ── Claude local overrides ──────────────────────────────
+CLAUDE.local.md
+.claude/settings.local.json
+
+# ── .NET ────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings.user
+TestResults/
+*.nupkg
+launchSettings.json
+
+# ── Node / Frontend ─────────────────────────────────────
+node_modules/
+dist/
+.vite/
+*.local
+.env
+.env.*
+!.env.example
+
+# ── Logs ────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── Docker ──────────────────────────────────────────────
+docker/volumes/
+
+# ── OS ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

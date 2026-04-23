@@ -1,0 +1,25 @@
+{
+  "model": "claude-sonnet-4-5",
+  "permissions": {
+    "allow": [
+      "Bash(dotnet:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(git:*)",
+      "Bash(docker:*)",
+      "Bash(docker compose:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(DROP DATABASE*)"
+    ]
+  },
+  "rules": [
+    ".claude/rules/code-style.md",
+    ".claude/rules/testing.md",
+    ".claude/rules/api-conventions.md"
+  ]
+}

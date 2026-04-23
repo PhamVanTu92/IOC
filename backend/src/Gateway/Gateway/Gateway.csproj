@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="HotChocolate.AspNetCore" Version="14.0.0" />
+    <PackageReference Include="HotChocolate.Data" Version="14.0.0" />
+    <PackageReference Include="MediatR" Version="12.4.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\MetadataService\Application\MetadataService.Application\MetadataService.Application.csproj" />
+    <ProjectReference Include="..\..\SemanticEngine\SemanticEngine\SemanticEngine.csproj" />
+    <ProjectReference Include="..\..\MetadataService\Infrastructure\MetadataService.Infrastructure\MetadataService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\QueryService\Application\QueryService.Application.csproj" />
+    <ProjectReference Include="..\..\QueryService\Infrastructure\QueryService.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

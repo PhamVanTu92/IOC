@@ -1,0 +1,78 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IOC Full Stack — Production / Staging
+# Build và chạy toàn bộ hệ thống
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Infrastructure (từ dev compose) ───────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "${DB_PASSWORD}"
+      MSSQL_PID: "Standard"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+    volumes:
+      - redis_data:/data
+
+  # ── Backend API ────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../src/backend
+      dockerfile: IOC.Api/Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=IOC;User=sa;Password=${DB_PASSWORD}"
+      Kafka__BootstrapServers: "kafka:9092"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+    depends_on:
+      - sqlserver
+      - kafka
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../src/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  zookeeper_data:
+  sqlserver_data:
+  redis_data:
