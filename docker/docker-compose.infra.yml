@@ -107,8 +107,7 @@ services:
     container_name: ioc-kafka
     restart: unless-stopped
     ports:
-      - "9092:9092"     # app kết nối từ host
-      - "9101:9101"     # JMX metrics
+      - "9092:9092"
     environment:
       # KRaft — không cần Zookeeper
       KAFKA_NODE_ID: 1
@@ -119,18 +118,14 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Topics & retention
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168     # 7 ngày
+      KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
-      # JMX
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
-      # Cluster ID (stable)
+      # Cluster ID (stable — không đổi sau khi khởi tạo)
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -138,24 +133,37 @@ services:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
       timeout: 10s
-      retries: 10
-      start_period: 30s
+      retries: 15
+      start_period: 40s
     networks: [ioc-net]
 
-  # Kafka Init — tạo topics khi Kafka sẵn sàng
+  # Kafka Init — tạo topics (inline command, tránh lỗi CRLF từ .sh file)
   kafka-init:
     image: confluentinc/cp-kafka:7.7.0
     container_name: ioc-kafka-init
     depends_on:
       kafka:
         condition: service_healthy
-    volumes:
-      - ../infra/kafka/topics.sh:/topics.sh:ro
-    command: ["bash", "/topics.sh"]
+    command: >
+      bash -c "
+        echo 'Creating IOC Kafka topics...' &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.metrics.updated        --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.query.executed         --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.dashboard.saved        --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.dashboard.deleted      --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.finance.budget-updated --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.finance.invoice-created --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.hr.employee-joined     --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.hr.leave-approved      --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.marketing.campaign-launched --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ioc.system.errors          --partitions 1 --replication-factor 1 &&
+        echo '✅ Topics created:' &&
+        kafka-topics --bootstrap-server kafka:29092 --list
+      "
     networks: [ioc-net]
     restart: "no"
 
-  # Kafka UI — xem topics, messages, consumer groups
+  # Kafka UI — xem topics, messages, consumer groups (không dùng JMX)
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: ioc-kafka-ui
@@ -165,7 +173,6 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: ioc-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_METRICS_PORT: 9101
     depends_on:
       kafka:
         condition: service_healthy
