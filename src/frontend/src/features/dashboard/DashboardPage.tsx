@@ -29,6 +29,11 @@ interface DashboardPageProps {
   onDeleted?: () => void;
   /** Called when the user clicks "back to list" in the toolbar. */
   onBack?: () => void;
+  /**
+   * Called after a NEW dashboard is successfully created for the first time.
+   * The parent should navigate to /dashboards/:id so the URL reflects the real ID.
+   */
+  onSaved?: (id: string) => void;
 }
 
 type ModalState =
@@ -36,7 +41,7 @@ type ModalState =
   | { mode: 'create' }
   | { mode: 'edit'; widgetId: string };
 
-export function DashboardPage({ dashboardId, onDeleted, onBack }: DashboardPageProps) {
+export function DashboardPage({ dashboardId, onDeleted, onBack, onSaved }: DashboardPageProps) {
   const editMode          = useDashboardStore((s) => s.editMode);
   const isDirty           = useDashboardStore((s) => s.isDirty);
   const dashboard         = useDashboardStore((s) => s.dashboard);
@@ -134,9 +139,11 @@ export function DashboardPage({ dashboardId, onDeleted, onBack }: DashboardPageP
     try {
       const saved = await save(dashboard);
       if (saved.id !== dashboard.id) {
-        // Dashboard was newly created — update ref so the effect guard stays in sync
-        lastActedIdRef.current = saved.id;
-        useDashboardStore.getState().loadDashboard(saved);
+        // First save of a brand-new dashboard:
+        // Navigate to the real URL instead of staying on /dashboards/new.
+        // This causes DashboardPage to remount with the real dashboardId,
+        // which loads the dashboard properly and keeps the ref guard correct.
+        onSaved?.(saved.id);
       } else {
         markSaved();
       }

@@ -125,6 +125,7 @@ function DashboardDetailAdapter() {
         dashboardId={isNew ? undefined : id}
         onDeleted={() => navigate('/dashboards')}
         onBack={() => navigate('/dashboards')}
+        onSaved={(newId) => navigate(`/dashboards/${newId}`, { replace: true })}
       />
     </Suspense>
   );
