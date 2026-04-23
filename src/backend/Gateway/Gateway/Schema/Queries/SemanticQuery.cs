@@ -99,6 +99,7 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
             // 5. Build + execute SQL
             var (sql, parameters) = BuildSql(
                 cfg, selectedDims, selectedMeasures, selectedMetrics,
+                measures,  // allMeasures for metric expression resolution
                 input.Filters, input.Sorts,
                 input.Limit ?? 1000,
                 input.TimeDimensionName, input.Granularity, input.TimeRange);
@@ -191,6 +192,7 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
     private static (string sql, Dictionary<string, object?> parameters) BuildSql(
         DatasetConfig cfg,
         List<DimMeta> dims, List<MeasureMeta> measures, List<MetricMeta> metrics,
+        List<MeasureMeta> allMeasures,
         QueryFilterInput[]? filters, QuerySortInput[]? sorts,
         int limit,
         string? timeDim, string? granularity, TimeRangeInput? timeRange)
@@ -225,8 +227,14 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
                 : $"\"{m.column_name}\"";
             selectParts.Add($"{m.aggregation_type.ToUpper()}({col}) AS \"{m.name}\"");
         }
+        // Metrics: replace measure name references with their aggregate expressions
+        // e.g. "profit / NULLIF(revenue,0)*100" → "SUM(profit) / NULLIF(SUM(revenue),0)*100"
+        // Use allMeasures (not just selected) so expressions like "profit" resolve even if not selected
         foreach (var x in metrics)
-            selectParts.Add($"({x.expression}) AS \"{x.name}\"");
+        {
+            var expr = ReplaceMeasureRefs(x.expression, allMeasures);
+            selectParts.Add($"({expr}) AS \"{x.name}\"");
+        }
 
         sb.Append("SELECT ").AppendJoin(", ", selectParts);
         sb.Append(" FROM ").Append(fromClause);
@@ -306,6 +314,27 @@ public sealed class SemanticQuery(ILogger<SemanticQuery> logger)
         sb.Append($" LIMIT {Math.Clamp(limit, 1, 50_000)}");
 
         return (sb.ToString(), parameters);
+    }
+
+    /// Replace bare measure names in a metric expression with their aggregate form.
+    /// e.g. "profit" → "SUM(\"profit\")" when profit.aggregation_type = "sum"
+    private static string ReplaceMeasureRefs(string expression, List<MeasureMeta> allMeasures)
+    {
+        var result = expression;
+        // Sort longest name first to avoid partial replacements (e.g. "revenue_net" before "revenue")
+        foreach (var m in allMeasures.OrderByDescending(m => m.name.Length))
+        {
+            var col = !string.IsNullOrWhiteSpace(m.custom_sql_expression)
+                ? m.custom_sql_expression
+                : $"\"{m.column_name}\"";
+            var aggExpr = $"{m.aggregation_type.ToUpper()}({col})";
+            // Word-boundary replacement: only replace whole word
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result,
+                $@"\b{System.Text.RegularExpressions.Regex.Escape(m.name)}\b",
+                aggExpr);
+        }
+        return result;
     }
 
     private static string ApplyGranularity(string colExpr, string granularity) =>
