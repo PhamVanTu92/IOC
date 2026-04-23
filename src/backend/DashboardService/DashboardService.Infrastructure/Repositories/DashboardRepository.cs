@@ -21,16 +21,17 @@ public sealed class DashboardRepository(
 
     // ── Row model for Dapper mapping ──────────────────────────────────────────
 
+    // Dapper maps by constructor parameter name (case-insensitive) → must match DB column names (snake_case)
     private sealed record DashboardRow(
-        Guid Id,
-        Guid TenantId,
-        Guid CreatedBy,
-        string Title,
-        string? Description,
-        string ConfigJson,
-        bool IsActive,
-        DateTime CreatedAt,
-        DateTime UpdatedAt);
+        Guid id,
+        Guid tenant_id,
+        Guid created_by,
+        string title,
+        string? description,
+        string config_json,
+        bool is_active,
+        DateTime created_at,
+        DateTime updated_at);
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -150,7 +151,7 @@ public sealed class DashboardRepository(
 
     private static Dashboard Reconstitute(DashboardRow r) =>
         Dashboard.Reconstitute(
-            r.Id, r.TenantId, r.CreatedBy,
-            r.Title, r.Description, r.ConfigJson,
-            r.IsActive, r.CreatedAt, r.UpdatedAt);
+            r.id, r.tenant_id, r.created_by,
+            r.title, r.description, r.config_json,
+            r.is_active, r.created_at, r.updated_at);
 }
