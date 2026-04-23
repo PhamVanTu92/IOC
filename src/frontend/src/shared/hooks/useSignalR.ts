@@ -38,8 +38,11 @@ export interface UseSignalRReturn {
 
 const RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
+// Dùng VITE_SIGNALR_URL nếu được set (local dev override),
+// ngược lại dùng window.location.origin để đi qua nginx proxy đúng host.
 const HUB_URL =
-  (import.meta.env.VITE_SIGNALR_URL as string | undefined) ?? 'http://localhost:5000';
+  (import.meta.env.VITE_SIGNALR_URL as string | undefined) ??
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000');
 
 export function useSignalR({
   url = `${HUB_URL}/hubs/dashboard`,
