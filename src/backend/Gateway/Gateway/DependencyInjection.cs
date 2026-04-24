@@ -1,7 +1,11 @@
 using DashboardService.Application;
 using DashboardService.Infrastructure;
 using Gateway.Auth;
+using Gateway.Charts;
 using Gateway.Infrastructure;
+using Gateway.Layouts;
+using Gateway.Modules;
+using Gateway.Permissions;
 using Gateway.Schema.Mutations;
 using Gateway.Schema.Queries;
 using Gateway.Schema.Types;
@@ -47,6 +51,18 @@ public static class DependencyInjection
             // Auth schema
             .AddTypeExtension<AuthMutation>()
             .AddTypeExtension<AuthQuery>()
+            // Module schema
+            .AddTypeExtension<ModuleQuery>()
+            .AddTypeExtension<ModuleMutation>()
+            // Chart schema
+            .AddTypeExtension<ChartQuery>()
+            .AddTypeExtension<ChartMutation>()
+            // Permission schema
+            .AddTypeExtension<PermissionQuery>()
+            .AddTypeExtension<PermissionMutation>()
+            // Layout schema
+            .AddTypeExtension<LayoutQuery>()
+            .AddTypeExtension<LayoutMutation>()
             // Authorization support
             .AddAuthorization()
             // Error handling
@@ -97,6 +113,17 @@ public static class DependencyInjection
             new DataSeeder(connectionString, sp.GetRequiredService<ILogger<DataSeeder>>()));
         services.AddHostedService(sp => sp.GetRequiredService<DataSeeder>());
 
+        return services;
+    }
+
+    public static IServiceCollection AddModuleServices(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        services.AddScoped<ModuleRepository>(_ => new ModuleRepository(connectionString));
+        services.AddScoped<ChartRepository>(_ => new ChartRepository(connectionString));
+        services.AddScoped<PermissionRepository>(_ => new PermissionRepository(connectionString));
+        services.AddScoped<LayoutRepository>(_ => new LayoutRepository(connectionString));
         return services;
     }
 

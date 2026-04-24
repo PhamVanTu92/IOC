@@ -11,6 +11,10 @@ import { pluginRegistry, type IOCPlugin, type RouteConfig } from './PluginRegist
 import { ConnectionStatusIndicator } from '@/shared/components/ConnectionStatusIndicator';
 import { useSignalR } from '@/shared/hooks/useSignalR';
 import { useAuthStore } from '@/features/auth/authStore';
+import { useQuery } from '@apollo/client';
+import { GET_MODULES } from '@/graphql/moduleQueries';
+import type { ModuleGql } from '@/graphql/moduleTypes';
+import type { AuthUser } from '@/features/auth/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AppShell — root layout with sidebar nav + main content area
@@ -25,8 +29,10 @@ import { useAuthStore } from '@/features/auth/authStore';
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-function SidebarMenu({ plugins }: { plugins: IOCPlugin[] }) {
+function SidebarMenu({ plugins, user }: { plugins: IOCPlugin[]; user: AuthUser | null }) {
   const menuItems = pluginRegistry.getAllMenuItems();
+  const { data } = useQuery<{ modules: ModuleGql[] }>(GET_MODULES);
+  const modules = data?.modules ?? [];
 
   return (
     <aside className="ioc-sidebar">
@@ -58,6 +64,38 @@ function SidebarMenu({ plugins }: { plugins: IOCPlugin[] }) {
             <span>{item.label}</span>
           </NavLink>
         ))}
+
+        {user?.role === 'admin' && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              isActive ? 'ioc-nav-item ioc-nav-item--active' : 'ioc-nav-item'
+            }
+          >
+            <span className="ioc-nav-icon">⚙</span>
+            <span>Quan tri</span>
+          </NavLink>
+        )}
+
+        {modules.length > 0 && (
+          <>
+            <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, padding: '12px 12px 4px', textTransform: 'uppercase' }}>
+              Modules
+            </div>
+            {modules.map(m => (
+              <NavLink
+                key={m.id}
+                to={`/modules/${m.id}`}
+                className={({ isActive }) =>
+                  isActive ? 'ioc-nav-item ioc-nav-item--active' : 'ioc-nav-item'
+                }
+              >
+                <span className="ioc-nav-icon">{m.icon}</span>
+                <span>{m.name}</span>
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
       <div className="ioc-sidebar__plugins">
@@ -185,6 +223,18 @@ function DashboardDetailAdapter() {
   );
 }
 
+function ModuleDashboardAdapter() {
+  const { moduleId } = useParams<{ moduleId: string }>();
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ModuleDashboard
+        moduleId={moduleId ?? ''}
+        moduleName="Module Dashboard"
+      />
+    </Suspense>
+  );
+}
+
 // ── AppShell ──────────────────────────────────────────────────────────────────
 
 export function AppShell() {
@@ -193,7 +243,7 @@ export function AppShell() {
   const routes = pluginRegistry.getAllRoutes();
 
   // Auth guard — all hooks must be called before any conditional return
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -217,7 +267,7 @@ export function AppShell() {
 
   return (
     <div className="ioc-layout">
-      <SidebarMenu plugins={plugins} />
+      <SidebarMenu plugins={plugins} user={user} />
 
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
         <TopBar />
@@ -230,6 +280,20 @@ export function AppShell() {
               {/* Dashboard routes */}
               <Route path="/dashboards" element={<DashboardListAdapter />} />
               <Route path="/dashboards/:id" element={<DashboardDetailAdapter />} />
+
+              {/* Admin routes (admin-only guard handled in AdminPage) */}
+              <Route path="/admin" element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminPage />
+                </Suspense>
+              } />
+
+              {/* Module dashboard route */}
+              <Route path="/modules/:moduleId" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ModuleDashboardAdapter />
+                </Suspense>
+              } />
 
               {/* Plugin-registered routes */}
               {routes.map((route: RouteConfig) => (
@@ -265,6 +329,14 @@ const DashboardPage = React.lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({
     default: m.DashboardPage,
   }))
+);
+
+const AdminPage = React.lazy(() =>
+  import('@/features/admin/AdminPage').then(m => ({ default: m.AdminPage }))
+);
+
+const ModuleDashboard = React.lazy(() =>
+  import('@/features/modules/ModuleDashboard').then(m => ({ default: m.ModuleDashboard }))
 );
 
 // ── Shared small components ───────────────────────────────────────────────────

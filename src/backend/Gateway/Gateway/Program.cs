@@ -28,6 +28,7 @@ builder.Services
     .AddDashboardServices(connectionString)
     .AddGateway()
     .AddAuthServices(connectionString, jwtOptions)
+    .AddModuleServices(connectionString)
     .AddRealtimeBridge(builder.Configuration);
 
 // JWT Bearer Authentication — configured with proper validation
